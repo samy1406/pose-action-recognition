@@ -69,12 +69,6 @@ python src/action_classifier.py
 # Model saved to data/action_model.pkl
 ```
 
-**3. Create demo clip:**
-```bash
-python src/create_demo.py
-# Output saved to demo/demo_clip.mp4
-```
-
 ## Project Structure
 
 ```
