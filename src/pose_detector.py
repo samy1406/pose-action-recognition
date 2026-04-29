@@ -3,6 +3,9 @@
 import cv2
 import mediapipe as mp
 from angle_utils import calculate_angle
+import csv
+import pickle
+
 
 # 1. init mediapipe pose
 mp_pose = mp.solutions.pose
@@ -13,12 +16,19 @@ pose = mp_pose.Pose(
 )
 
 # 2. open video
-cap = cv2.VideoCapture("data/test_video1.mp4")
+cap = cv2.VideoCapture("data/test_pushup.mp4")
 # before while loop — add this after cap = cv2.VideoCapture(...)
 width  = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
 height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 fps    = int(cap.get(cv2.CAP_PROP_FPS))
 out = cv2.VideoWriter("data/output.mp4", cv2.VideoWriter_fourcc(*'mp4v'), fps, (width, height))
+
+csv_file = open("data/training_data.csv", "a", newline="")
+writer = csv.writer(csv_file)
+writer.writerow(["knee_angle", "elbow_angle", "hip_angle", "label"])
+
+with open("data/action_model.pkl", "rb") as f:
+    model = pickle.load(f)
 
 counter = 0
 stage = None
@@ -43,9 +53,12 @@ while cap.isOpened():
         hip   = [landmarks[23].x, landmarks[23].y]
         knee  = [landmarks[25].x, landmarks[25].y]
         ankle = [landmarks[27].x, landmarks[27].y]
+        shoulder = [landmarks[11].x, landmarks[11].y]
+        elbow = [landmarks[13].x, landmarks[13].y]
+        wrist = [landmarks[15].x, landmarks[15].y]
         
         # calculate angle
-        angle = calculate_angle(hip, knee, ankle)
+        angle = calculate_angle(shoulder, elbow, wrist)
         
         # print angle
         print(angle)
@@ -62,6 +75,19 @@ while cap.isOpened():
             cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 2)
         cv2.putText(frame, f"Angle: {int(angle)}", (10, 100), 
             cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+        # inside loop after calculating angles
+        knee_angle  = calculate_angle(hip, knee, ankle)
+        elbow_angle = calculate_angle(shoulder, elbow, wrist)
+        hip_angle   = calculate_angle(shoulder, hip, knee)
+        
+        features = [[knee_angle, elbow_angle, hip_angle]]
+        action = model.predict(features)[0]
+
+        label = "standing"  # change per video
+
+        writer.writerow([knee_angle, elbow_angle, hip_angle, label])
+        cv2.putText(frame, f"Action: {action}", (width - 250, 50),
+            cv2.FONT_HERSHEY_SIMPLEX, 1, (255,0,0), 2)
 
     out.write(frame)
     if cv2.waitKey(1) & 0xFF == ord('q'):
